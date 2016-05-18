@@ -2,10 +2,12 @@ from numpy import *
 import pandas as pd
 from sklearn.decomposition import PCA
 
+def str2(num):
+	return u'%02d' % (num,)
 def str3(num):
-	return '%03d' % (num,)
+	return u'%03d' % (num,)
 def str4(num):
-	return '%04d' % (num,) 
+	return u'%04d' % (num,) 
 def floatClean(string):
 	if string == u'*' or string == u'N/D':
 		return 0.0
@@ -16,41 +18,58 @@ def freq(data,index,reference):
 
 # This is to read the data from INEGI, which is in an excel file with two pages
 #first we show where the file is
-agebExcel = pd.ExcelFile("/Users/D/Dropbox/slums/RESAGEBURB_09XLS10.xls")
-
+agebExcelDF = pd.ExcelFile("/Users/D/Dropbox/slums/RESAGEBURB_09XLS10.xls")
+agebExcelMex = pd.ExcelFile("/Users/D/Dropbox/slums/RESAGEBURB_15XLS10.xls")
 #then we read each page
-d1Ageb = agebExcel.parse(u'ITER AGEB URBANAS MUN 002 - 014')
-d2Ageb =agebExcel.parse(u'ITER AGEB URBANAS MUN 014 - 017')
+d1Ageb = agebExcelDF.parse(u'ITER AGEB URBANAS MUN 002 - 014')
+d2Ageb =agebExcelDF.parse(u'ITER AGEB URBANAS MUN 014 - 017')
+
+d3Ageb = agebExcelMex.parse(u'ITER AGEB URBANAS')
+d4Ageb = agebExcelMex.parse(u'ITER AGEB URBANAS_01')
+d5Ageb = agebExcelMex.parse(u'ITER AGEB URBANAS_02')
+
 
 #and put it in one dataframe
 dataAgeb2010 = d1Ageb.append(d2Ageb,ignore_index=True)
+dataAgeb2010 = dataAgeb2010.append(d3Ageb,ignore_index=True)
+dataAgeb2010 = dataAgeb2010.append(d4Ageb,ignore_index=True)
+dataAgeb2010 = dataAgeb2010.append(d5Ageb,ignore_index=True)
+
+# this helps to localize in the map
+dataAgeb2010['ID'] = map(str2,dataAgeb2010['ENTIDAD'])
+dataAgeb2010['ID'] += map(str3,dataAgeb2010['MUN'])
+dataAgeb2010['ID'] += map(str4,dataAgeb2010['LOC'])
+dataAgeb2010['ID'] += dataAgeb2010['AGEB']
+dataAgeb2010['ID'] += map(str3,dataAgeb2010['MZA'])
 
 
 # The localities file is easier to read since its in 1 page
 dataLoc2010 = pd.read_excel("/Users/D/Dropbox/slums/DatosDF2010.xls")
+localidadesMex = pd.read_excel("/Users/D/Dropbox/slums/ITER_15XLS10.xls")
+dataLoc2010 = dataLoc2010.append(localidadesMex, ignore_index=True)
 
 #we establish a key for each locality ( later we use this for the gini coef)
 
-dataLoc2010['CLAVE_LOC'] = map(int,9e7+dataLoc2010.MUN*1e4+dataLoc2010.LOC)
+dataLoc2010['CLAVE_LOC'] = map(int,dataAgeb2010.ENTIDAD*1e7+dataLoc2010.MUN*1e4+dataLoc2010.LOC)
 # In the other data we also establish the same number so we know to wich locality 
 # each block belongs
-dataAgeb2010['CLAVE_LOC'] = map(int,9e7+dataAgeb2010.MUN*1e4+dataAgeb2010.LOC)
+dataAgeb2010['CLAVE_LOC'] = map(int,dataAgeb2010.ENTIDAD*1e7+dataAgeb2010.MUN*1e4+dataAgeb2010.LOC)
 
 #This would give a unique ID to each urban block
 # dataAgeb2010['MUN']= map(str3,dataAgeb2010['MUN'])
 # dataAgeb2010['LOC']= map(str4,dataAgeb2010['LOC'])
 # dataAgeb2010['MZA']= map(str3,dataAgeb2010['MZA'])
 # dataAgeb2010['ID'] = dataAgeb2010['MUN']+dataAgeb2010['LOC']+dataAgeb2010['AGEB']+dataAgeb2010['MZA']
-
+dataAgeb2010['NOM_LOC'] = map(lambda x: x.lower(), dataAgeb2010.NOM_LOC)
 #Then in the AGEB data we have different level of agregation so we will split them
 #first level (biggest) is district
-level1_2010 = dataAgeb2010[dataAgeb2010['NOM_LOC']==u'Total del municipio']
+level1_2010 = dataAgeb2010[dataAgeb2010['NOM_LOC']==u'total del municipio']
 # then  locality
-level2_2010 = dataAgeb2010[dataAgeb2010['NOM_LOC']==u'Total de la localidad urbana']
+level2_2010 = dataAgeb2010[dataAgeb2010['NOM_LOC']==u'total de la localidad urbana']
 # then group of blocks
-level3_2010 = dataAgeb2010[dataAgeb2010['NOM_LOC']==u'Total AGEB urbana']
+level3_2010 = dataAgeb2010[dataAgeb2010['NOM_LOC']==u'total ageb urbana']
 # last (smallest) per block. We will work with this data
-level4_2010 = dataAgeb2010[(dataAgeb2010['NOM_LOC']!=u'Total del municipio') & (dataAgeb2010['NOM_LOC']!=u'Total de la localidad urbana') & (dataAgeb2010['NOM_LOC']!=u'Total AGEB urbana') & (dataAgeb2010['NOM_LOC']!=u'Total de la entidad') ]
+level4_2010 = dataAgeb2010[(dataAgeb2010['NOM_LOC']!=u'total del municipio') & (dataAgeb2010['NOM_LOC']!=u'total de la localidad urbana') & (dataAgeb2010['NOM_LOC']!=u'total ageb urbana') & (dataAgeb2010['NOM_LOC']!=u'total de la entidad') ]
 
 #cleaning total population bigger than 30 and more than 10 homes
 lev4_Clean = level4_2010[(level4_2010.VIVTOT > 10) & (level4_2010.POBTOT > 30)]
@@ -69,14 +88,10 @@ lev4_Clean = level4_2010[(level4_2010.VIVTOT > 10) & (level4_2010.POBTOT > 30)]
 # we obtain this here with freq
 
 #first make a new dataframe for the frequencies
-freqLoc = pd.DataFrame(columns=['Index'])
-freqLoc['Index'] = arange(len(dataLoc2010))
-
-freqLev4 = pd.DataFrame(columns=['Index','ID'])
-freqLev4.Index = arange(len(lev4_Clean))
-#freqLev4.ID = lev4_Clean.ID.values
-freqLev4['CLAVE_LOC'] = lev4_Clean.CLAVE_LOC.values
-#freqLoc.ID = lev4_Clean.ID.values
+#A hard copy would be safer: freqLoc = dataLoc2010.[['CLAVE_LOC']].copy()
+#lev4_Clean['ID','CLAVE_LOC'].copy()
+freqLoc = dataLoc2010.[['CLAVE_LOC']]
+freqLev4 = lev4_Clean[['ID','CLAVE_LOC']]
 
 #then we calculate for the quantities we are interested in the localities
 #as well as in the data at all levels of aggregation
@@ -86,7 +101,10 @@ freqLoc['NoWater']=freq(dataLoc2010,'VPH_AGUAFV','VIVTOT')
 freqLoc['DirtFloor']=freq(dataLoc2010,'VPH_PISOTI','VIVTOT')
 freqLoc['Toilet']=freq(dataLoc2010,'VPH_EXCSA','VIVTOT')
 freqLoc['AvrPersPerRoom']=map(floatClean,dataLoc2010['PRO_OCUP_C'])
-freqLoc['AvrPersPerRoom']=1./(freqLoc.AvrPersPerRoom + 1.)
+# To set the scale between 0 and 1. 1 being 0 habitants
+# but it change some things
+#freqLoc['AvrPersPerRoom']=1.-1./(freqLoc.AvrPersPerRoom + 1.)
+freqLoc['AvrPersPerRoom']=freqLoc.AvrPersPerRoom/10.
 
 freqLev4['NoWater']=freq(lev4_Clean,'VPH_AGUAFV','VIVTOT')
 freqLev4['DirtFloor']=freq(lev4_Clean,'VPH_PISOTI','VIVTOT')
@@ -94,7 +112,9 @@ freqLev4['Toilet']=freq(lev4_Clean,'VPH_EXCSA','VIVTOT')
 freqLev4['NoSewage']=freq(lev4_Clean,'VPH_NODREN','VIVTOT')
 freqLev4['AvrPersPerRoom']=map(floatClean,lev4_Clean['PRO_OCUP_C'])
 # To set the scale between 0 and 1. 1 being 0 habitants
-freqLev4['AvrPersPerRoom']= 1./(freqLev4.AvrPersPerRoom+1.)
+# but it change some things
+#freqLev4['AvrPersPerRoom']= 1.-1./(freqLev4.AvrPersPerRoom+1.)
+freqLev4['AvrPersPerRoom']= freqLev4.AvrPersPerRoom/10.
 
 
 
@@ -185,29 +205,14 @@ for i in urbanLocalitiesNumber.index:
 	dataLoc2010['giniSlumIndex'][i] = gini(freqLev4.SlumIndex[blocksInLocality])
 
 
-# Analizing similarities between the two indexes
-
+##############################################################################
+##############################################################################
+############## ANALIZING SIMILARITIES BETWEEN THE INDEXES ####################
+##############################################################################
 urbanLocalities = dataLoc2010[(dataLoc2010.POBTOT > 2500) & (dataLoc2010.conevalIndex != 0.0)]
 
 plot(urbanLocalities.conevalIndex,urbanLocalities.SlumIndex,'o')
 corrcoef(urbanLocalities.conevalIndex,urbanLocalities.SlumIndex)
-
-# figure(2)
-# freqSort2 = freqLev4.sort(columns=['CLAVE_LOC','SlumIndex'])
-# plot(freqSort2.AvrGrade,'o')
-# xlabel('Urban units ordered by vale of Slum Index divided by locality')
-# ylabel('Average Level of Scholarity')
-# title('Average grade of the population ordered by increasing Slum Index')
-
-#To check out distribution of Slum Index in each Locality
-#plot(freqSort2.SlumIndex,'o')
-#hist(freqSort.SlumIndex[(freqSort.SlumIndex<2) & (freqSort.CLAVE_LOC==90090033)].values,bins=30)
-
-
-# freqLoc['NoSewage']=freq(dataLoc2010,'VPH_NODREN','VIVTOT')
-# freqLoc['NoHealthIns']=freq(dataLoc2010,'PSINDER','POBTOT')
-# freqLoc['NoElec']=freq(dataLoc2010,'VPH_S_ELEC','VIVTOT')
-
 
 # Some plots to show correlation between SLum Index and other ambitos
 freqLev4['Employed']=freq(lev4_Clean,'POCUPADA','PEA')
@@ -217,43 +222,20 @@ freqLev4['Fecundity']=map(floatClean, lev4_Clean['PROM_HNV'])
 freqLev4['NonImigrants']=freq(lev4_Clean,'PNACENT','POBTOT')
 freqLev4['Indigenous']=freq(lev4_Clean,'P3YM_HLI','P_3YMAS')
 
+#we define another dataframed based on the block data sorted by the Slum Index
 freqSort = freqLev4.sort('SlumIndex')
 
-# School
-#freqLev4['NoSchool']=freq(lev4_Clean,'P15YM_SE','P_15YMAS')
-#freqLev4['NoPrimary']=freq(lev4_Clean,'P15PRI_IN','P_15YMAS')
-#freqLev4['Primary']=freq(lev4_Clean,'P15PRI_CO','P_15YMAS')
-#freqLev4['Secondary']=freq(lev4_Clean,'P15SEC_COM','P_15YMAS')
-#freqLev4['HigherSchool']=freq(lev4_Clean,'P18YM_PB','P_18YMAS')
-
+# SCHOLARITY the avrage grade of scholarity in the block
 plot(freqSort.AvrGrade,'o')
 xlabel('Urban units ordered by value of Slum Index')
 ylabel('Average Level of Scholarity')
 title('Correlation between SI and Average scholarity level achieved by urban unit')
-#Correlation between SI and Average scholarity level achieved by urban unit
 
-
-
-# Work (Strange distribution with skips, almost no correlation with
-# values evrywhere)
-
-#freqLev4['UnEmployed']=freq(lev4_Clean,'PDESOCUP','PEA')
+# Employment 
 plot(freqSort.Employed,'o')
 xlabel('Urban units ordered by value of Slum Index')
 ylabel('Average Level of Scholarity')
 title('Correlation with employment')
-
-# With Amenities
-# freqLev4['Toilet']=freq(lev4_Clean,'VPH_EXCSA','VIVTOT')
-# freqLev4['OtherFloor']=freq(lev4_Clean,'VPH_PISODT','VIVTOT')
-# freqLev4['AllServices']=freq(lev4_Clean,'VPH_C_SERV','VIVTOT')
-
-# # Lacking Amenities
-# freqLev4['NoSewage']=freq(lev4_Clean,'VPH_NODREN','VIVTOT')
-# freqLev4['NoElec']=freq(lev4_Clean,'VPH_S_ELEC','VIVTOT')
-# freqLev4['NoWater']=freq(lev4_Clean,'VPH_AGUAFV','VIVTOT')
-# freqLev4['NoRadioCarCompEtc']=freq(lev4_Clean,'VPH_SNBIEN','VIVTOT')
-
 
 # Health
 plot(freqSort.NoHealthIns,'o')
@@ -278,6 +260,57 @@ plot(freqSort.Indigenous,'o')
 xlabel('Urban units ordered by value of Slum Index')
 ylabel('Indigenous People')
 title('Correlation with Indegenous population')
+
+
+
+
+# figure(2)
+# freqSort2 = freqLev4.sort(columns=['CLAVE_LOC','SlumIndex'])
+# plot(freqSort2.AvrGrade,'o')
+# xlabel('Urban units ordered by vale of Slum Index divided by locality')
+# ylabel('Average Level of Scholarity')
+# title('Average grade of the population ordered by increasing Slum Index')
+
+#To check out distribution of Slum Index in each Locality
+#plot(freqSort2.SlumIndex,'o')
+#hist(freqSort.SlumIndex[(freqSort.SlumIndex<2) & (freqSort.CLAVE_LOC==90090033)].values,bins=30)
+
+
+# freqLoc['NoSewage']=freq(dataLoc2010,'VPH_NODREN','VIVTOT')
+# freqLoc['NoHealthIns']=freq(dataLoc2010,'PSINDER','POBTOT')
+# freqLoc['NoElec']=freq(dataLoc2010,'VPH_S_ELEC','VIVTOT')
+
+
+
+
+# School
+#freqLev4['NoSchool']=freq(lev4_Clean,'P15YM_SE','P_15YMAS')
+#freqLev4['NoPrimary']=freq(lev4_Clean,'P15PRI_IN','P_15YMAS')
+#freqLev4['Primary']=freq(lev4_Clean,'P15PRI_CO','P_15YMAS')
+#freqLev4['Secondary']=freq(lev4_Clean,'P15SEC_COM','P_15YMAS')
+#freqLev4['HigherSchool']=freq(lev4_Clean,'P18YM_PB','P_18YMAS')
+
+#Correlation between SI and Average scholarity level achieved by urban unit
+
+
+
+# Work (Strange distribution with skips, almost no correlation with
+# values evrywhere)
+
+#freqLev4['UnEmployed']=freq(lev4_Clean,'PDESOCUP','PEA')
+
+# With Amenities
+# freqLev4['Toilet']=freq(lev4_Clean,'VPH_EXCSA','VIVTOT')
+# freqLev4['OtherFloor']=freq(lev4_Clean,'VPH_PISODT','VIVTOT')
+# freqLev4['AllServices']=freq(lev4_Clean,'VPH_C_SERV','VIVTOT')
+
+# # Lacking Amenities
+# freqLev4['NoSewage']=freq(lev4_Clean,'VPH_NODREN','VIVTOT')
+# freqLev4['NoElec']=freq(lev4_Clean,'VPH_S_ELEC','VIVTOT')
+# freqLev4['NoWater']=freq(lev4_Clean,'VPH_AGUAFV','VIVTOT')
+# freqLev4['NoRadioCarCompEtc']=freq(lev4_Clean,'VPH_SNBIEN','VIVTOT')
+
+
 
 
 
