@@ -17,68 +17,96 @@ def floatClean(string):
 def freq(data,index,reference):
 	return array(map(floatClean,data[index]))/array(map(floatClean,data[reference]))
 
-def SlumIndex(year, keysList):
+def getRates(year,keysList):
 	#year as string '90'
-	#keysList must have [totpop, water, dirtfloor, toilet, AvrPers]
+	#keysList must have [totViv, water, dirtfloor, toilet, AvrPers]
 	#read
 	df = pd.read_excel("/Users/D/Dropbox/slums/ITER_09XLS" + year + ".xls")
-	mex = pd.read_excel"/Users/D/Dropbox/slums/ITER_15XLS" + year + ".xls")
+	mex = pd.read_excel("/Users/D/Dropbox/slums/ITER_15XLS" + year + ".xls")
 	df_mex = df.append(mex, ignore_index = True)
+	#to take out \t in the keys
+	df_mex.rename(columns=lambda x: x.strip('\t'),inplace=True)
 
 	#identify
-	df_mex['CLAVE_LOC'] = map(df_mex.ENTIDAD*1e7+df_mex.MUN*1e4+df_mex.LOC)
+	df_mex['ID'] = map(int,df_mex.ENTIDAD*1e7+df_mex.MUN*1e4+df_mex.LOC)
 
 	#prepareData
-	frequencies = df_mex[['CLAVE_LOC']]
+	rates = df_mex[['ID']]
 
-	#then we calculate for the quantities we are interested in the localities
-	#as well as in the data at all levels of aggregation
+	#then we calculate the rates for the quantities we are interested
+	
 
-	# The frequencies we are going to use for the slum index
-	frequencies['NoWater']=freq(df_mex,keysList[1],keysList[0])
-	frequencies['DirtFloor']=freq(df_mex,keysList[2],keysList[0])
-	frequencies['Toilet']=freq(df_mex,keysList[3],keysList[0])
-	frequencies['AvrPersPerRoom']=map(floatClean,df_mex[ keysList[4]])
+	# The rates we are going to use for the slum index
+	rates['NoWater']=1.0-freq(df_mex,keysList[1],keysList[0])
+	rates['DirtFloor']=1.0-freq(df_mex,keysList[2],keysList[0])
+	rates['NoSewage']=1.0-freq(df_mex,keysList[3],keysList[0])
+	rates['AvrPersPerRoom']=map(floatClean,df_mex[ keysList[4]])
 	# To set the scale between 0 and 1. 1 being 0 habitants
-	frequencies['AvrPersPerRoom']= 1.-1./(frequencies.AvrPersPerRoom + 1.)
+	rates['AvrPersPerRoom']= 1.-1./(rates.AvrPersPerRoom + 1.)
+	return rates
 
+def SlumIndex(rates):
 	#calculate Slum index
-	pca = PCA(n_components=4)
-	pca.fit(frequencies[['NoWater','DirtFloor','AvrPersPerRoom','Toilet']])
 
-	#Here we STORE PARAMETER FOR SLUM IMPACT using the weights and vectors from pca
-	df_mex['SlumIndex'] = zeros(len(df_mex))
-	weights=pca.explained_variance_ratio_
-	new_vectors = dot(pca.components_, transpose(frequencies[['NoWater','DirtFloor','AvrPersPerRoom','Toilet']].values))
-	#In the localities we only need to calculate for the urban ones, the rural 
-	#doesn't have data at the block level
-	df_mex['SlumIndex'] = transpose(dot(weights,new_vectors))
+	#PCA with 4 components
+	# pca = PCA(n_components=4)
+	# pca.fit(rates[['NoWater','DirtFloor','AvrPersPerRoom','NoSewage']])
 
-	return df_mex.CLAVE_LOC.values, df_mex.SlumIndex.values
+	# #Here we STORE PARAMETER FOR SLUM IMPACT using the weights and vectors from pca
+	# rates['SlumIndex'] = zeros(len(rates))
+	# weights=pca.explained_variance_ratio_
+	# #pca.components_ are the transformation vectors, rates are the original ones
+	# new_vectors = dot(transpose(pca.components_), transpose(rates[['NoWater','DirtFloor','AvrPersPerRoom','NoSewage']].values))
+	
+	# #Finally we get the index with the eigenvalues
+	# rates['SlumIndex'] = transpose(dot(weights,new_vectors))
 
+	# pca = PCA(n_components=4)
+	# new_vectors = pca.fit_transform(rates[['NoWater','DirtFloor','AvrPersPerRoom','NoSewage']])
+	# rates['SlumIndex'] = dot(pca.explained_variance_ratio_,transpose(new_vectors))
+	rates['SlumIndex'] = rates[['NoWater','DirtFloor','AvrPersPerRoom','NoSewage']].values.sum(axis=1)
+	return rates[['ID','SlumIndex']]
 
-
-
-
-
-# The localities file is easier to read since its in 1 page
-df_90 = pd.read_excel("/Users/D/Dropbox/slums/ITER_09XLS90.xls")
-df_95 = pd.read_excel("/Users/D/Dropbox/slums/ITER_09XLS95.xls")
-df_00 = pd.read_excel("/Users/D/Dropbox/slums/ITER_09XLS00.xls")
-df_05 = pd.read_excel("/Users/D/Dropbox/slums/ITER_09XLS05.xls")
-df_10 = pd.read_excel("/Users/D/Dropbox/slums/ITER_09XLS10.xls")
-
-mex_90 = pd.read_excel("/Users/D/Dropbox/slums/ITER_15XLS90.xls")
-mex_95 = pd.read_excel("/Users/D/Dropbox/slums/ITER_15XLS95.xls")
-mex_00 = pd.read_excel("/Users/D/Dropbox/slums/ITER_15XLS00.xls")
-mex_05 = pd.read_excel("/Users/D/Dropbox/slums/ITER_15XLS05.xls")
-mex_10 = pd.read_excel("/Users/D/Dropbox/slums/ITER_15XLS10.xls")
+# this function inserts data to the existing database (destination) of another year (origin)
+def assignColumn(destination,origin,year,columnName='SlumIndex',missingValue=nan):
+	destination[year] = zeros(len(destination))*missingValue
+	for i in range(len(origin)):
+		destination.loc[destination['ID']==origin.ID[i],year] = origin[columnName][i]
 
 
-localidadesMex = pd.read_excel("/Users/D/Dropbox/slums/ITER_15XLS10.xls")
-df_mex = df_mex.append(localidadesMex, ignore_index=True)
+#We need to track all the different localities with their ID's
+#since there are new localities or some change
+localitiesID = array([])
 
-#we establish a key for each locality ( later we use this for the gini coef)
+#First we get the rates (frequencies)
 
-df_mex['CLAVE_LOC'] = map(int,df_mex.ENTIDAD*1e7+df_mex.MUN*1e4+df_mex.LOC)
-# In the other data we also establish the same number so we know to wich locality 
+# 90 also has roof TECHO_LA, wall PARED_LA, electricity C_E_ELEC owner of the house VIV_PPROP
+# floor value refers to houses without dirtfloor, also with water and with sewer
+rates90 = getRates('90',['T_VIVHAB','C_AGUA_ENT','PISO_TIE','C_DRENAJE','PROM_CUA'])
+localitiesID = sort(unique(append(localitiesID,rates90.ID.values)))
+# VP_ELECTR, VP_TECDES VP_PARDES VP_SERSAN, VP_PROPIA
+rates00 = getRates('00',['TOTVIVHAB','VP_AGUENT','VP_PISDES','VP_DRENAJ','PRO_OCVP'])
+localitiesID = sort(unique(append(localitiesID,rates00.ID.values)))
+rates05 = getRates('05',['T_VIVHAB','VPH_AGDV','VPH_PIDT','VPH_DREN','PRO_C_VP'])
+localitiesID = sort(unique(append(localitiesID,rates05.ID.values)))
+rates10 = getRates('10',['TVIVHAB','VPH_AGUADV','VPH_PISODT','VPH_DRENAJ','PRO_OCUP_C'])
+localitiesID = sort(unique(append(localitiesID,rates10.ID.values)))
+
+# Then we calculate the slum index and store all in one database
+slumIndexHist = pd.DataFrame(localitiesID,columns=['ID'])
+
+newYear = SlumIndex(rates90)
+assignColumn(slumIndexHist,newYear,'90')
+
+newYear = SlumIndex(rates00)
+assignColumn(slumIndexHist,newYear,'00')
+
+newYear = SlumIndex(rates05)
+assignColumn(slumIndexHist,newYear,'05')
+
+newYear = SlumIndex(rates10)
+assignColumn(slumIndexHist,newYear,'10')
+
+
+
+slumIndexHist[['90','00','05','10']].boxplot() 
