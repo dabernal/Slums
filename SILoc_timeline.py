@@ -66,7 +66,7 @@ def SlumIndex(rates):
 	# rates['SlumIndex'] = dot(pca.explained_variance_ratio_,transpose(new_vectors))
 	facAn = FactorAnalysis(n_components = 1)
 	facAn.fit(rates[['NoWater','DirtFloor','AvrPersPerRoom','NoSewage']])
-	rates['SlumIndex'] = dot(facAn.components_,transpose(rates[['NoWater','DirtFloor','AvrPersPerRoom','NoSewage']].values))[0]
+	rates['SlumIndex'] = dot(facAn.components_**2,transpose(rates[['NoWater','DirtFloor','AvrPersPerRoom','NoSewage']].values))[0]
 	
 	# rates['SlumIndex'] = rates[['NoWater','DirtFloor','AvrPersPerRoom','NoSewage']].values.sum(axis=1)
 	return rates[['ID','SlumIndex']]
