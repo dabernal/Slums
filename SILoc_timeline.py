@@ -1,7 +1,7 @@
 #temporal analisis of the slum index
 from numpy import *
 import pandas as pd
-from sklearn.decomposition import PCA
+from sklearn.decomposition import PCA, FactorAnalysis
 
 def str2(num):
 	return u'%02d' % (num,)
@@ -64,7 +64,11 @@ def SlumIndex(rates):
 	# pca = PCA(n_components=4)
 	# new_vectors = pca.fit_transform(rates[['NoWater','DirtFloor','AvrPersPerRoom','NoSewage']])
 	# rates['SlumIndex'] = dot(pca.explained_variance_ratio_,transpose(new_vectors))
-	rates['SlumIndex'] = rates[['NoWater','DirtFloor','AvrPersPerRoom','NoSewage']].values.sum(axis=1)
+	facAn = FactorAnalysis(n_components = 1)
+	facAn.fit(rates[['NoWater','DirtFloor','AvrPersPerRoom','NoSewage']])
+	rates['SlumIndex'] = dot(facAn.components_,transpose(rates[['NoWater','DirtFloor','AvrPersPerRoom','NoSewage']].values))[0]
+	
+	# rates['SlumIndex'] = rates[['NoWater','DirtFloor','AvrPersPerRoom','NoSewage']].values.sum(axis=1)
 	return rates[['ID','SlumIndex']]
 
 # this function inserts data to the existing database (destination) of another year (origin)
@@ -106,7 +110,5 @@ assignColumn(slumIndexHist,newYear,'05')
 
 newYear = SlumIndex(rates10)
 assignColumn(slumIndexHist,newYear,'10')
-
-
 
 slumIndexHist[['90','00','05','10']].boxplot() 
