@@ -2,11 +2,14 @@
 CREATE THE SHAPEFILES OF THE CITY
 
 Files needed:
-cityLocsHist.json  file with the localities that belong to the city
-shapefiles/df_manzanas  all shapefiles for blocks in federal district
-shapefiles/df_manzanas  all shapefiles for blocks in state of mexico
+dataTrans.csv  file with data of the blocks of the city, just to get the blocks that actually belong to the city
+not all of the state
 
-output is a file with the blocks for Greater Mexico City
+shapefiles/df_manzanas  all shapefiles for blocks in federal district
+shapefiles/mex_manzanas  all shapefiles for blocks in state of mexico
+
+output is a file with the blocks for Greater Mexico City in
+cityBlocks/cityBlocks
 
 '''
 folderPath = "/Users/db/Dropbox/slums/"
@@ -28,7 +31,7 @@ def CLAVEtoID(clave):
 	return (int(clave[:9])*100000 + int(clave[9:13],16))*1000 + int(clave[14:])
 
 # file with localities in clean Data
-cityData = pd.read_csv(folderPath + 'cleanData.csv')
+cityData = pd.read_csv(folderPath + 'dataTrans.csv')
 cityIds = cityData['ID'].values
 
 
