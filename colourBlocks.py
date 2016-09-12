@@ -1,3 +1,15 @@
+"""
+CREATES A MAP OF THE BLOCKS IN MEXICO CITY USING DATA
+FILES NEEDED:
+"dataTrans.csv" file that contan the data to be plotted
+FOLDER NEEDED:
+cityBlocks with the shapefiles for the city
+
+Output:
+Map with blocks coloured according to values of an attribute in the dataframe 
+
+"""
+
 from mpl_toolkits.basemap import Basemap
 from matplotlib.colors import rgb2hex
 
@@ -15,9 +27,11 @@ def getColor(value,minV=0.,maxV=.008,cmap=cm.jet):
 #     slumIndexDict = json.load(f)
 # maxSI = max(slumIndexDict.values())
 
+# read the data
 cityData = pd.read_csv(folderPath + 'dataTrans.csv')
 cityData = cityData.set_index('ID')
 
+#Parameters for font size and family in map
 rcParams['font.size'] = 18.
 rcParams['font.family'] = 'Sans Serif'
 rcParams['axes.labelsize'] = 18.
@@ -26,82 +40,94 @@ rcParams['ytick.labelsize'] = 14.
 
 fig = figure(figsize=(10, 8))
 
+# Coordinates of Mexico City (DF)
 DF = [-99.0, 17.42]
 shift = [0, 2]
-
+#Characteristics of the map 
 width = 110000
 height = 110000
 res = 'l'
 proj = 'tmerc'
 
+#Map for drawing the districts (l1), so we dont need to read sevral times a big file
 m_mxLoc = Basemap(width=width, height=height, resolution=res, projection=proj,
             lon_0=DF[0]+shift[0], lat_0=DF[1]+shift[1])
+
+#Map for drawing the blocks (l3)
 m_mx = Basemap(width=width, height=height, resolution=res, projection=proj,
             lon_0=DF[0]+shift[0], lat_0=DF[1]+shift[1])
 m_mx.readshapefile( folderPath + 'cityBlocks/cityBlocks','cityBlocks', drawbounds=False, linewidth=.01)
 
+# To plot different maps, after running one time the code up to this point, its just necessary to run the code from this point forward
+# 
+#open a plotting environment
 fig = figure(figsize=(10, 8))
 colormap = cm.jet
+# plot the reference
 m_mx.drawcoastlines()
-m_mx.drawmapscale(DF[0], DF[1], 0, 0, 10, barstyle='simple', units='km', fontsize=9, yoffset=None, labelstyle='simple', fontcolor='k', fillcolor1='w', fillcolor2='k', ax=None, format='%d', zorder=None)
+#plot a mapscale (not working)
+#m_mx.drawmapscale(DF[0], DF[1], 0, 0, 10, barstyle='simple', units='km', fontsize=9, yoffset=None, labelstyle='simple', fontcolor='k', fillcolor1='w', fillcolor2='k', ax=None, format='%d', zorder=None)
 
-# plotData = cityData['VPH_NODREN']
-# plotData = cityData['VPH_1CUART']
-# plotData = cityData['VPH_AGUAFV']
-# plotData = cityData['VPH_PISOTI']
-# plotData = cityData['PRO_OCUP_C']
-# plotData = cityData['Dwellers']
-# plotData = cityData['LC']
-plotData = cityData['Factor']/cityData['Factor'].max()
-# orderK = {0:2,1:1,2:4,3:3}
+#This are different attributes to be plotted
+# plotData = cityData['VPH_NODREN'] #Houses without drainege
+# plotData = cityData['VPH_1CUART'] #Houses with only 1 room
+# plotData = cityData['VPH_AGUAFV'] #Houses without tubed water
+# plotData = cityData['VPH_PISOTI'] #Houses with dirt floor
+# plotData = cityData['PRO_OCUP_C'] # Average number of dwelleres per room
+# plotData = cityData['Dwellers'] #Dwellers
+# plotData = cityData['LC'] # Linear Combination SSI
+plotData = cityData['Factor']/cityData['Factor'].max() #Factor Analysis SSI
+# orderK = {0:2,1:1,2:4,3:3}ç
+
+# Because there are many blocks sometimes we decided just to plot a percentage, based on percentile of the data to be plotted
 lim = percentile(plotData,90)
-maxSI=1#plotData.max()
+maxSI=plotData.max()
+
+# this for plots the data
 for Blockdict,Block in zip(m_mx.cityBlocks_info,m_mx.cityBlocks):
     clave = Blockdict['ID']
     val = plotData[clave]
     # val =orderK[plotData[clave]]
 
     
-    # if (val > lim) and (val<10):
-    if cityData.LOC[clave] == 90070001:
+    if (val > lim):# and (val<10):
+    # if cityData.LOC[clave] == 90070001:
         xx,yy = zip(*Block)
         color = getColor(val ,maxV=maxSI,cmap=colormap)
         fill(xx,yy,color,linewidth=.01,alpha=2.)
 
 
-
+#this plots the contour of the districts
 m_mxLoc.readshapefile( folderPath + 'shapefiles/df_loc_urb', 'df_loc_urb',linewidth=.1)
 m_mxLoc.readshapefile( folderPath + 'shapefiles/mex_loc_urb', 'mex_loc_urb',linewidth=.1)
 
-title('SSI in Iztapalapa')
+#map details
+title('Factor Analysis')
 
 ax1 = fig.add_axes([0.2, 0.15, 0.01, 0.15])
 cb1 = mpl.colorbar.ColorbarBase(ax1, cmap=colormap,
                                 norm=mpl.colors.Normalize(vmin=lim, vmax=maxSI),
                                 orientation='vertical')
-cb1.set_label('SSI')
+cb1.set_label('FA SSI')
 tick_locator = mpl.ticker.MaxNLocator(nbins=4)
 cb1.locator = tick_locator
 cb1.update_ticks()
 
-
-sdf = np.array(m_mxLoc(DF[0], DF[1])) - np.array([28000, 10000])
-isdf = m_mxLoc(sdf[0], sdf[1], inverse='True')
-
+# move the Colorbar position
 ax1.set_position([0.70, 0.7, 0.01, 0.15])
 
-drawmapscale(lon, lat, lon0, lat0, length, barstyle='simple', units='km', fontsize=9, yoffset=None, labelstyle='simple', fontcolor='k', fillcolor1='w', fillcolor2='k', ax=None, format='%d', zorder=None)
+# drawmapscale(lon, lat, lon0, lat0, length, barstyle='simple', units='km', fontsize=9, yoffset=None, labelstyle='simple', fontcolor='k', fillcolor1='w', fillcolor2='k', ax=None, format='%d', zorder=None)
 
 
 
 
 
-title('Fraction of Block without water')
+# title('Fraction of Block without water')
 
-cityData = cityData.drop(cityData.loc[cityData['PRO_OCUP_C']>cityData['PROM_OCUP'],'PROM_OCUP'].index)
-cityData = cityData.drop(cityData.loc[cityData['PRO_OCUP_C']==0.],'PROM_OCUP'].index)
+# cityData = cityData.drop(cityData.loc[cityData['PRO_OCUP_C']>cityData['PROM_OCUP'],'PROM_OCUP'].index)
+# cityData = cityData.drop(cityData.loc[cityData['PRO_OCUP_C']==0.],'PROM_OCUP'].index)
 
-cityData.drop(cityData.loc[cityData['PRO_OCUP_C']==0.],'PROM_OCUP'].index)
+# cityData.drop(cityData.loc[cityData['PRO_OCUP_C']==0.],'PROM_OCUP'].index)
 
 
 
