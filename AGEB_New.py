@@ -1,18 +1,23 @@
 '''
-DATA CLEANING, STRUCTURING and PROCESSING
-of
-CENSUS 2010 at a BLOCK level in Mexico city (df) and conurbation (mex), for the CALCULATION of Slum Severity Index (SSI) 
+READ THE DATA, CLEAN, PROCESS AND STORE IT IN A DATABASE
+
+DATA: CENSUS 2010 at a BLOCK level in Mexico city (df) and conurbation (mex), for the CALCULATION of Slum Severity Index (SSI) 
  
 
-To run this code first be sure to have the following files IN ONE FOLDER:
+TO RUN this code first be sure to have the following files IN ONE FOLDER:
 
 Census data at the level of AGEB and blocks for 2010 in:
 
-Mexico City (Federal District) df: "ITER_09XLS90.XLS", "ITER_09XLS95.XLS", "ITER_09XLS00.XLS", "ITER_09XLS05.XLS", "ITER_09XL10.XLS"
-State of Mexico mex: "ITER_15XLS90.XLS", "ITER_15XLS95.XLS", "ITER_15XLS00.XLS", "ITER_15XLS05.XLS", "ITER_15XL10.XLS"
+Mexico City (Federal District) df: "RESAGEBURB_09XLS.XLS"
+State of Mexico mex: "RESAGEBURB_15XLS.XLS"
 
-Then be sure to fill in the variable folderPath with the path to the folder with those files.
+BE SURE to fill in the variable folderPath with the path to the folder with those files.
 
+OUTCOME in the folderPath:
+file "dataTrans.csv" with dataframe ready to be plotted, with slum characteristics: "Water", "Sanitation", "Structure" and "Density"
+also it has the slum indexes as attributes with names "Factor", "K_Means", "LC"
+
+files with desicion tree for different attributes: "de_tree.dot","wa_tree.dot",etc 
 
 '''
 ### FILL IN THIS VARIBLE THE PATH TO THE FOLDER WHERE ALL THE FILES MENTIONED ABOVE CAN BE FOUND:
@@ -277,13 +282,17 @@ def dataTransformations(x):
 	x['Water'] = x['VPH_AGUAFV']/x['Houses']
 
 	#Sanitation use VPH_EXCSA and VPH_NODREN
-	x['Sanitation'] = (x['Houses'] - x['VPH_EXCSA'] + x['VPH_NODREN']) / x['Houses']
+	x['Sanitation'] = (x['Houses'] - x['VPH_EXCSA'] + x['VPH_NODREN']) / (2.*x['Houses'])
 
 	#Overcrowding use VPH_1CUART and PRO_OCUP_C
-	x['Density'] = 1. - 1./(1. +x['PRO_OCUP_C'])
-
+	# x['Density'] = 1. - 1./(1. +x['PRO_OCUP_C'])
+	x['Density'] = x['PRO_OCUP_C']-2.
+	x.loc[x.Density<0,'Density'] = 0.
+	x['Density'] = 1. - 1./(1. + x.Density)
+	x['Density'] = x['Density']/x['Density'].max()
+	
 	#Structure VPH_1CUART and VPH_PISOTI
-	x['Structure'] = (x['VPH_PISOTI'] + x['VPH_1CUART']) / x['Houses']
+	x['Structure'] = (x['VPH_PISOTI'] + x['VPH_1CUART']) / (2*x['Houses'])
 
 	ssiData = pd.DataFrame(normalize(x[['Water','Structure','Density','Sanitation']],axis=0), columns=['Water','Structure','Density','Sanitation'])
 
@@ -302,7 +311,7 @@ def dataTransformations(x):
 
 	#linear combination
 
-	x.loc[:,'LC'] = x[['Water','Structure','Sanitation']].sum(axis=1) + x['PRO_OCUP_C'] 
+	x.loc[:,'LC'] = x[['Water','Structure','Sanitation']].sum(axis=1) + (x['PRO_OCUP_C']/ x['PRO_OCUP_C'].max())
 
 	
 
@@ -375,6 +384,8 @@ def dataMining(X,y, classes=5, name = "tree.dot", max_depth=5, binData=1):
 l1, l2, l3, l4 = cityLevelsData( '10' )
 blocksClean = dataCleaning( l4 )
 blocksAll = dataTransformations( blocksClean )
+blocksAll.to_csv( folderPath + "dataTrans.csv")
+
 X_train = prepareMining( blocksAll )
 
 
@@ -401,11 +412,7 @@ lc_tree = dataMining(X_train, y_labels,  name='lc_tree.dot')
 
 
 
-((((((x==0) == (cityData.VPH_1CUART==0)) == (cityData.PRO_OCUP_C > 2)
-     ...: ) == (cityData.VPH_NODREN == 0))== (cityData.VPH_EXCSA>=cityData.House
-     ...: s)) == (cityData.VPH_PISOTI ==0)).sum()
 
-noServices = cityData[cityData[['VPH_1CUART', 'VPH_NODREN', 'VPH_PISOTI']] == 0].index 
 
 
 
